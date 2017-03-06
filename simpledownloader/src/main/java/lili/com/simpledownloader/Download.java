@@ -1,6 +1,9 @@
 package lili.com.simpledownloader;
 
 import android.os.RecoverySystem;
+import android.support.annotation.NonNull;
+import android.util.Log;
+import android.widget.ProgressBar;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,7 +25,7 @@ import okhttp3.ResponseBody;
  * lilikazine@gmail.com
  */
 
-public class Download {
+public class Download implements WrappedResponseBody.ProgressListener {
 
     private WrappedResponseBody.ProgressListener listener;
 
@@ -31,11 +34,18 @@ public class Download {
     private File dest;
     private OkHttpClient client;
 
+    private ProgressBar progressBar;
 
-    public Download(WrappedResponseBody.ProgressListener listener, String url, File dest) {
-        this.listener = listener;
-        this.url = url;
-        this.dest = dest;
+    private long totalLength = 0L;
+    private long receivedBytes;
+    private long breakPoints;
+
+    private Boolean paused = false;
+
+
+
+    public Download() {
+        listener = this;
         client = getClient();
     }
 
@@ -50,8 +60,58 @@ public class Download {
         return new OkHttpClient.Builder().addNetworkInterceptor(interceptor).build();
     }
 
-    public void proceed(final long startPoint) {
-        call = newCall(startPoint);
+    public Download url(@NonNull String url) {
+        this.url = url;
+        return this;
+    }
+
+    public Download setSavedPath(@NonNull File dest) {
+        this.dest = dest;
+        return this;
+    }
+
+    public Download setProgress(ProgressBar progressBar) {
+        this.progressBar = progressBar;
+        return this;
+    }
+
+    public void proceed() {
+        if (url == null||dest==null) {
+            return;
+        }
+        paused = false;
+        Log.d("call!=null:", url + dest);
+        call = newCall(0L);
+        call.enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                e.printStackTrace();
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                save(response, 0L);
+            }
+        });
+    }
+
+    public void pause() {
+        if (call != null) {
+            call.cancel();
+        }
+        breakPoints = receivedBytes;
+        paused = true;
+    }
+
+    public void goOn() {
+        if (!paused) {
+            return;
+        }
+        paused = false;
+        if (url == null || dest == null) {
+            return;
+        }
+        call = newCall(breakPoints);
         call.enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -60,12 +120,15 @@ public class Download {
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                save(response, startPoint);
+                save(response, breakPoints);
             }
         });
     }
 
     private Call newCall(long startPoint) {
+        if (url == null) {
+            return null;
+        }
         Request request = new Request.Builder()
                 .url(url)
                 .header("RANGE", "bytes=" + startPoint + "-")
@@ -92,7 +155,7 @@ public class Download {
             }
         } catch (IOException e) {
             e.printStackTrace();
-        }finally {
+        } finally {
             try {
                 in.close();
                 if (channelOut != null) {
@@ -107,10 +170,23 @@ public class Download {
         }
     }
 
-    public void pause() {
-        if (call != null) {
-            call.cancel();
+    @Override
+    public void beforeExecute(long totalLength) {
+        if (progressBar != null) {
+            if (this.totalLength == 0L) {
+                this.totalLength = totalLength;
+                progressBar.setMax((int) (totalLength / 1024));
+            }
         }
+
     }
 
+    @Override
+    public void update(long receivedBytes, boolean finished) {
+        this.receivedBytes = receivedBytes + breakPoints;
+        progressBar.setProgress((int) (receivedBytes + breakPoints) / 1024);
+        if (finished) {
+            Log.d("qaq", "finished");
+        }
+    }
 }

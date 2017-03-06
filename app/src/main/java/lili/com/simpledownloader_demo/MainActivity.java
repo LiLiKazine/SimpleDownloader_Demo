@@ -13,7 +13,7 @@ import java.io.File;
 import lili.com.simpledownloader.Download;
 import lili.com.simpledownloader.WrappedResponseBody;
 
-public class MainActivity extends AppCompatActivity implements WrappedResponseBody.ProgressListener {
+public class MainActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private long breakPoints;
     public static final String PACKAGE_URL = "http://gdown.baidu.com/data/wisegame/df65a597122796a4/weixin_821.apk";
@@ -32,11 +32,11 @@ public class MainActivity extends AppCompatActivity implements WrappedResponseBo
     public void onClick(View view) {
         switch (view.getId()) {
             case R.id.download:
-                ;
+
                 breakPoints = 0L;
                 file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "sample.apk");
-                download = new Download(this, PACKAGE_URL, file);
-                download.proceed(0L);
+                download = new Download();
+                download.url(PACKAGE_URL).setSavedPath(file).setProgress(progressBar).proceed();
                 Toast.makeText(this, "start", Toast.LENGTH_LONG).show();
 
                 break;
@@ -44,11 +44,11 @@ public class MainActivity extends AppCompatActivity implements WrappedResponseBo
                 download.pause();
                 Toast.makeText(this, "paused", Toast.LENGTH_LONG).show();
                 //存储此时的totalBytes，即断点位置
-                breakPoints = receivedBytes;
+//                breakPoints = receivedBytes;
                 break;
             case R.id.go_on:
-                download.proceed(breakPoints);
-                Toast.makeText(this, "continue", Toast.LENGTH_LONG).show();
+                download.goOn();
+//                Toast.makeText(this, "continue", Toast.LENGTH_LONG).show();
                 break;
         }
     }
@@ -58,20 +58,4 @@ public class MainActivity extends AppCompatActivity implements WrappedResponseBo
         finish();
     }
 
-    @Override
-    public void beforeExecute(long totalLength) {
-        if (this.totalLength == 0L) {
-            this.totalLength = totalLength;
-            progressBar.setMax((int) (totalLength / 1024));
-        }
-    }
-
-    @Override
-    public void update(long receivedBytes, boolean finished) {
-        this.receivedBytes = receivedBytes + breakPoints;
-        progressBar.setProgress((int) (receivedBytes + breakPoints) / 1024);
-        if (finished) {
-            Log.d("qaq", "finished");
-        }
-    }
 }
