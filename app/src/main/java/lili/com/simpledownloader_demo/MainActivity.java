@@ -35,14 +35,14 @@ public class MainActivity extends AppCompatActivity {
 
                 breakPoints = 0L;
                 file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "sample.apk");
-                download = new Download();
-                download.url(PACKAGE_URL).setSavedPath(file).setProgress(progressBar).proceed();
-                Toast.makeText(this, "start", Toast.LENGTH_LONG).show();
+                download = new Download(this);
+                download.url(PACKAGE_URL).setSavePath(file).setProgress(progressBar).proceed();
+//                Toast.makeText(this, "start", Toast.LENGTH_LONG).show();
 
                 break;
             case R.id.pause:
                 download.pause();
-                Toast.makeText(this, "paused", Toast.LENGTH_LONG).show();
+//                Toast.makeText(this, "paused", Toast.LENGTH_LONG).show();
                 //存储此时的totalBytes，即断点位置
 //                breakPoints = receivedBytes;
                 break;

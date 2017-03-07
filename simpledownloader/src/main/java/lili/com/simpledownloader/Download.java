@@ -1,9 +1,12 @@
 package lili.com.simpledownloader;
 
+import android.content.Context;
+import android.os.Environment;
 import android.os.RecoverySystem;
 import android.support.annotation.NonNull;
 import android.util.Log;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,6 +15,11 @@ import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Interceptor;
@@ -42,11 +50,14 @@ public class Download implements WrappedResponseBody.ProgressListener {
 
     private Boolean paused = false;
 
+    private Context context;
 
 
-    public Download() {
+
+    public Download(Context context) {
         listener = this;
         client = getClient();
+        this.context = context;
     }
 
     public OkHttpClient getClient() {
@@ -65,7 +76,7 @@ public class Download implements WrappedResponseBody.ProgressListener {
         return this;
     }
 
-    public Download setSavedPath(@NonNull File dest) {
+    public Download setSavePath(@NonNull File dest) {
         this.dest = dest;
         return this;
     }
@@ -76,10 +87,12 @@ public class Download implements WrappedResponseBody.ProgressListener {
     }
 
     public void proceed() {
-        if (url == null||dest==null) {
+        if (url == null) {
             return;
         }
         paused = false;
+        Toast.makeText(context, "started", Toast.LENGTH_LONG).show();
+
         Log.d("call!=null:", url + dest);
         call = newCall(0L);
         call.enqueue(new Callback() {
@@ -87,7 +100,6 @@ public class Download implements WrappedResponseBody.ProgressListener {
             public void onFailure(Call call, IOException e) {
                 e.printStackTrace();
             }
-
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 save(response, 0L);
@@ -101,6 +113,7 @@ public class Download implements WrappedResponseBody.ProgressListener {
         }
         breakPoints = receivedBytes;
         paused = true;
+        Toast.makeText(context, "paused", Toast.LENGTH_LONG).show();
     }
 
     public void goOn() {
@@ -108,14 +121,16 @@ public class Download implements WrappedResponseBody.ProgressListener {
             return;
         }
         paused = false;
-        if (url == null || dest == null) {
+        Toast.makeText(context, "continue", Toast.LENGTH_LONG).show();
+
+        if (url == null) {
             return;
         }
         call = newCall(breakPoints);
         call.enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-
+                e.printStackTrace();
             }
 
             @Override
@@ -137,6 +152,9 @@ public class Download implements WrappedResponseBody.ProgressListener {
     }
 
     public void save(Response response, long startPoint) {
+        if (dest == null) {
+            dest = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "sample.apk");
+        }
         ResponseBody body = response.body();
         InputStream in = body.byteStream();
         FileChannel channelOut = null;
@@ -184,9 +202,21 @@ public class Download implements WrappedResponseBody.ProgressListener {
     @Override
     public void update(long receivedBytes, boolean finished) {
         this.receivedBytes = receivedBytes + breakPoints;
-        progressBar.setProgress((int) (receivedBytes + breakPoints) / 1024);
+        if (progressBar != null) {
+            progressBar.setProgress((int) (receivedBytes + breakPoints) / 1024);
+        }
         if (finished) {
             Log.d("qaq", "finished");
+
+            Flowable.just("finished")
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(new Consumer<String>() {
+                        @Override
+                        public void accept(String str) throws Exception {
+                            Toast.makeText(context, str, Toast.LENGTH_LONG).show();
+                        }
+                    });
         }
     }
 }
