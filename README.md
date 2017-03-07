@@ -7,7 +7,7 @@
 Android Studio 在module的build.gradle中添加：
 
 ```groovy
-compile 'com.squareup.okhttp3:okhttp:3.5.0'
+compile 'com.lili:simpledownloader:1.0.1'
 ```
 
 ## 使用

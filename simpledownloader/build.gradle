@@ -47,7 +47,7 @@ publish {
     userOrg = 'lilikazine'
     groupId = 'com.lili'
     artifactId = 'simpledownloader'
-    publishVersion = '1.0.0'
+    publishVersion = '1.0.1'
     desc = 'Downloader based on okhttp3'
     website = 'https://github.com/lilikazine/simpledownloader'
 }
