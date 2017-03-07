@@ -15,12 +15,9 @@ import lili.com.simpledownloader.WrappedResponseBody;
 
 public class MainActivity extends AppCompatActivity {
     private ProgressBar progressBar;
-    private long breakPoints;
     public static final String PACKAGE_URL = "http://gdown.baidu.com/data/wisegame/df65a597122796a4/weixin_821.apk";
     private Download download;
     private File file;
-    private long receivedBytes;
-    private long totalLength = 0L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,7 +30,6 @@ public class MainActivity extends AppCompatActivity {
         switch (view.getId()) {
             case R.id.download:
 
-                breakPoints = 0L;
                 file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "sample.apk");
                 download = new Download(this);
                 download.url(PACKAGE_URL).setSavePath(file).setProgress(progressBar).proceed();
