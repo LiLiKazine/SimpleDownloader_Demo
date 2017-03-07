@@ -60,3 +60,8 @@ compile 'com.squareup.okhttp3:okhttp:3.5.0'
 
 ## 效果图
 
+![效果图](https://raw.githubusercontent.com/LiLiKazine/SimpleDownloader_Demo/master/S70307-101952.jpg)
+
+## 示例apk
+
+[SimpleDownloader_Demo.apk](https://github.com/LiLiKazine/SimpleDownloader_Demo/raw/master/SimpleDownloader_Demo.apk)
