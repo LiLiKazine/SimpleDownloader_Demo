@@ -23,7 +23,7 @@ compile 'com.lili:simpledownloader:1.0.1'
            android:visibility="visible" />
    ```
 
-2. 创建`lili.com.simpledownloader.Download`类实例并传入`Contex`
+2. 创建`lili.com.simpledownloader.Http`类实例并传入`Contex`
 
    ```java
    Download download = new Download(contex);

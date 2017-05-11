@@ -1,4 +1,4 @@
-package lili.com.simpledownloader;
+package lili.com.simpledownloader.wrapper;
 
 import java.io.IOException;
 

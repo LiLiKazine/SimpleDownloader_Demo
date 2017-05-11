@@ -2,7 +2,6 @@ package lili.com.simpledownloader;
 
 import android.content.Context;
 import android.os.Environment;
-import android.os.RecoverySystem;
 import android.support.annotation.NonNull;
 import android.util.Log;
 import android.widget.ProgressBar;
@@ -16,15 +15,19 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
 import io.reactivex.Flowable;
-import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
+import lili.com.simpledownloader.wrapper.WrappedRequestBody;
+import lili.com.simpledownloader.wrapper.WrappedResponseBody;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Interceptor;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
@@ -33,13 +36,17 @@ import okhttp3.ResponseBody;
  * lilikazine@gmail.com
  */
 
-public class Download implements WrappedResponseBody.ProgressListener {
+public class Http implements WrappedResponseBody.ProgressListener, WrappedRequestBody.ProgressListener {
 
-    private WrappedResponseBody.ProgressListener listener;
+    private final String TAG = getClass().getName();
+
+    private WrappedResponseBody.ProgressListener downloadListener;
+    private WrappedRequestBody.ProgressListener uploadListener;
 
     private Call call;
     private String url;
     private File dest;
+    private File path;
     private OkHttpClient client;
 
     private ProgressBar progressBar;
@@ -52,57 +59,122 @@ public class Download implements WrappedResponseBody.ProgressListener {
 
     private Context context;
 
+    enum METHOD{
+        GET,HEAD,POST,PUT,DELETE,CONNECT,OPTIONS,TRACE,DOWNLOAD,UPLOAD
+    }
 
 
-    public Download(Context context) {
-        listener = this;
-        client = getClient();
+    public Http(Context context) {
+        downloadListener = this;
+        uploadListener = this;
+//        client = getDownloadClient();
         this.context = context;
     }
 
-    public OkHttpClient getClient() {
+    public OkHttpClient getDownloadClient() {
         Interceptor interceptor = new Interceptor() {
             @Override
             public Response intercept(Chain chain) throws IOException {
                 Response original = chain.proceed(chain.request());
-                return original.newBuilder().body(new WrappedResponseBody(original.body(), listener)).build();
+                return original.newBuilder().body(new WrappedResponseBody(original.body(), downloadListener)).build();
             }
         };
         return new OkHttpClient.Builder().addNetworkInterceptor(interceptor).build();
     }
 
-    public Download url(@NonNull String url) {
+    public OkHttpClient getUploadClient() {
+        Interceptor interceptor = new Interceptor() {
+            @Override
+            public Response intercept(Chain chain) throws IOException {
+                Request originalRequest = chain.request();
+                Request request = originalRequest.newBuilder()
+                        .method(originalRequest.method(), new WrappedRequestBody(originalRequest.body(), uploadListener))
+                        .build();
+                return chain.proceed(request);
+            }
+        };
+        return new OkHttpClient.Builder().addNetworkInterceptor(interceptor).build();
+    }
+
+//    public Http proceed(METHOD method) {
+//        switch (method) {
+//            case DOWNLOAD:
+//        }
+//        return this;
+//    }
+
+    public Http url(@NonNull String url) {
         this.url = url;
         return this;
     }
 
-    public Download setSavePath(@NonNull File dest) {
+    public Http setUploadFilePath(File path) {
+        this.path = path;
+        return this;
+    }
+
+    public Http setSavePath(@NonNull File dest) {
         this.dest = dest;
         return this;
     }
 
-    public Download setProgress(ProgressBar progressBar) {
+    public Http setProgress(ProgressBar progressBar) {
         this.progressBar = progressBar;
         return this;
     }
 
-    public void proceed() {
+    public void proceedDownload() {
         if (url == null) {
+            Log.e(TAG, "下载失败，url为空.");
+            return;
+        }
+        if (dest == null) {
+            Log.e(TAG, "下载失败，dest为空.");
             return;
         }
         paused = false;
         Toast.makeText(context, "started", Toast.LENGTH_LONG).show();
 
         Log.d("call!=null:", url + dest);
-        call = newCall(0L);
+
+        client = getDownloadClient();
+        call = newDownloadCall(0L);
         call.enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 e.printStackTrace();
             }
+
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 save(response, 0L);
+            }
+        });
+    }
+
+    public void proceedUpload() {
+        if (url == null) {
+            Log.e(TAG, "上传失败，url为空.");
+            return;
+        }
+        if (path == null) {
+            Log.e(TAG, "下载失败，path为空.");
+            return;
+        }
+        Toast.makeText(context, "started", Toast.LENGTH_LONG).show();
+        Log.d("call!=null:", url + path);
+
+        client = getUploadClient();
+        call = newUploadCall();
+        call.enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                e.printStackTrace();
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -126,7 +198,7 @@ public class Download implements WrappedResponseBody.ProgressListener {
         if (url == null) {
             return;
         }
-        call = newCall(breakPoints);
+        call = newDownloadCall(breakPoints);
         call.enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -140,7 +212,7 @@ public class Download implements WrappedResponseBody.ProgressListener {
         });
     }
 
-    private Call newCall(long startPoint) {
+    private Call newDownloadCall(long startPoint) {
         if (url == null) {
             return null;
         }
@@ -149,6 +221,36 @@ public class Download implements WrappedResponseBody.ProgressListener {
                 .header("RANGE", "bytes=" + startPoint + "-")
                 .build();
         return client.newCall(request);
+    }
+
+    private Call newUploadCall() {
+        RequestBody fileBody = RequestBody.create(MediaType.parse("application/octet-stream"), path);
+        String fileName = "test_file";
+        String boundary = "xx--------------------------------------------------------------xx";
+
+        MultipartBody multipartBody = new MultipartBody.Builder(boundary)
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("upload_files", "files")
+                .addFormDataPart("file", fileName, fileBody)
+                .build();
+        Request request = new Request.Builder()
+                .url(url)
+                .post(multipartBody)
+                .build();
+        return client.newCall(request);
+
+//        client = new OkHttpClient.Builder()
+//                .addInterceptor(new Interceptor() {
+//                    @Override
+//                    public Response intercept(Chain chain) throws IOException {
+//                        Request originalRequest = chain.request();
+//                        Request request = originalRequest.newBuilder()
+//                                .method(originalRequest.method(), new WrappedRequestBody(originalRequest.body(), uploadListener))
+//                                .build();
+//                        return chain.proceed(request);
+//                    }
+//                })
+//                .build();
     }
 
     public void save(Response response, long startPoint) {
